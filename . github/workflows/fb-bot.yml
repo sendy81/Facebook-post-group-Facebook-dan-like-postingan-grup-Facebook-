@@ -1,0 +1,79 @@
+name: Facebook Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *"
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate package-lock.json if missing
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "⚡ package-lock.json belum ada, generate dengan npm install..."
+            npm install --legacy-peer-deps
+          fi
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      # ✅ Tambah step untuk bikin variabel tanggal
+      - name: Set DATE
+        run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+      # ✅ Buat folder media
+      - name: Create media folder
+        run: mkdir -p media
+
+      # ✅ Download media dengan nama file pakai tanggal otomatis
+      - name: Download Media
+        run: |
+          curl -L "https://github.com/${{ github.repository }}/releases/download/v1.0/akun1_${{ env.DATE }}.png" -o media/akun1_${{ env.DATE }}.png
+          # kalau ada video juga
+          # curl -L "https://github.com/${{ github.repository }}/releases/download/v1.0/akun1_${{ env.DATE }}.mp4" -o media/akun1_${{ env.DATE }}.mp4
+
+      # ✅ Jalankan bot Puppeteer
+      - name: Run Puppeteer bot
+        run: node docs/index.js
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
+          DATE: ${{ env.DATE }}
+
+      # ✅ Upload recording
+      - name: Upload recording
+        uses: actions/upload-artifact@v4
+        with:
+          name: recording-video
+          path: recording.mp4
+
+      # ✅ Upload semua screenshot
+      - name: Upload all screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            docs/media/after_upload.png
+            docs/media/after_upload_*.png
+            
+      # ✅ Bersihkan folder media
+      - name: Clean media folder
+        run: rm -rf media/*
